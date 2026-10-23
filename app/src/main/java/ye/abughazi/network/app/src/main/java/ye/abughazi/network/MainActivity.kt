@@ -2,89 +2,152 @@ package ye.abughazi.network
 
 import android.app.Activity
 import android.os.Bundle
+import android.content.Context
 import android.graphics.Color
 import android.view.Gravity
 import android.view.ViewGroup
+import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
+import java.net.InetSocketAddress
+import java.net.Socket
+import kotlin.concurrent.thread
 
 class MainActivity : Activity() {
-    private val navy = Color.rgb(18, 42, 66)
-    private val teal = Color.rgb(0, 137, 123)
+
+    private lateinit var ipInput: EditText
+    private lateinit var userInput: EditText
+    private lateinit var passwordInput: EditText
+    private lateinit var portInput: EditText
+    private lateinit var statusText: TextView
+
+    private val prefs by lazy {
+        getSharedPreferences("router_settings", Context.MODE_PRIVATE)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         val scroll = ScrollView(this)
-        val page = LinearLayout(this).apply {
+        val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(24, 28, 24, 24)
-            setBackgroundColor(Color.rgb(245, 247, 250))
+            setPadding(28, 24, 28, 24)
+            setBackgroundColor(Color.rgb(245, 248, 252))
+            layoutDirection = LinearLayout.LayoutDirection.RTL
         }
 
-        scroll.addView(page)
-
-        page.addView(TextView(this).apply {
-            text = "شبكة أبو غازي"
-            textSize = 28f
-            setTextColor(navy)
-            gravity = Gravity.CENTER
-            setPadding(0, 10, 0, 8)
-        })
-
-        page.addView(TextView(this).apply {
-            text = "لوحة إدارة الشبكة"
-            textSize = 16f
-            setTextColor(Color.DKGRAY)
-            gravity = Gravity.CENTER
-            setPadding(0, 0, 0, 22)
-        })
-
-        addCard(page, "حالة الإنترنت", "لم يتم الاتصال بالمايكروتك بعد")
-        addCard(page, "المشتركون", "إدارة المشتركين")
-        addCard(page, "كروت الهوتسبوت", "إدارة الكروت")
-        addCard(page, "الموزعون والأرصدة", "متابعة الموزعين")
-        addCard(page, "الحسابات", "المبيعات والمصروفات والأرباح")
-        addCard(page, "اتصالا الإنترنت", "مراقبة الاتصال الأول والثاني")
-        addCard(page, "إعدادات المايكروتك", "إعداد الاتصال بالراوتر")
-
-        page.addView(TextView(this).apply {
-            text = "نسخة أولية — الربط بالراوتر لم يُفعّل بعد"
-            textSize = 13f
-            setTextColor(Color.GRAY)
-            gravity = Gravity.CENTER
-            setPadding(0, 20, 0, 10)
-        })
-
+        scroll.addView(layout)
         setContentView(scroll)
-    }
 
-    private fun addCard(parent: LinearLayout, title: String, description: String) {
-        val card = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(18, 16, 18, 16)
-            setBackgroundColor(Color.WHITE)
+        fun addText(text: String, size: Float, color: Int = Color.DKGRAY) {
+            layout.addView(TextView(this).apply {
+                this.text = text
+                textSize = size
+                setTextColor(color)
+                gravity = Gravity.RIGHT
+                setPadding(4, 12, 4, 12)
+            })
         }
 
-        card.addView(TextView(this).apply {
-            text = title
-            textSize = 19f
-            setTextColor(teal)
-        })
+        fun addInput(hint: String, value: String = ""): EditText {
+            return EditText(this).apply {
+                this.hint = hint
+                setText(value)
+                textSize = 16f
+                singleLine = true
+                layout.addView(
+                    this,
+                    LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    )
+                )
+            }
+        }
 
-        card.addView(TextView(this).apply {
-            text = description
-            textSize = 14f
-            setTextColor(Color.DKGRAY)
-            setPadding(0, 7, 0, 0)
-        })
+        fun addButton(label: String, action: () -> Unit) {
+            layout.addView(Button(this).apply {
+                text = label
+                setOnClickListener { action() }
+            })
+        }
 
-        val params = LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-        params.setMargins(0, 0, 0, 14)
-        parent.addView(card, params)
+        addText("شبكة أبو غازي", 28f, Color.rgb(15, 90, 65))
+        addText("إعداد الاتصال بالمايكروتك", 20f)
+
+        addText("عنوان IP للراوتر", 15f)
+        ipInput = addInput("مثال: 192.168.88.1",
+            prefs.getString("ip", "") ?: "")
+
+        addText("اسم المستخدم", 15f)
+        userInput = addInput("اسم مستخدم الراوتر",
+            prefs.getString("username", "") ?: "")
+
+        addText("كلمة المرور", 15f)
+        passwordInput = addInput("كلمة مرور الراوتر",
+            prefs.getString("password", "") ?: "")
+        passwordInput.inputType =
+            android.text.InputType.TYPE_CLASS_TEXT or
+            android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+
+        addText("منفذ API", 15f)
+        portInput = addInput("8728",
+            prefs.getString("port", "8728") ?: "8728")
+        portInput.inputType = android.text.InputType.TYPE_CLASS_NUMBER
+
+        addButton("حفظ الإعدادات") {
+            prefs.edit()
+                .putString("ip", ipInput.text.toString().trim())
+                .putString("username", userInput.text.toString().trim())
+                .putString("password", passwordInput.text.toString())
+                .putString("port", portInput.text.toString().trim())
+                .apply()
+
+            Toast.makeText(this, "تم حفظ الإعدادات على الهاتف", Toast.LENGTH_SHORT).show()
+        }
+
+        addButton("اختبار الوصول إلى الراوتر") {
+            val ip = ipInput.text.toString().trim()
+            val port = portInput.text.toString().trim().toIntOrNull()
+
+            if (ip.isBlank() || port == null || port !in 1..65535) {
+                statusText.text = "تحقق من عنوان IP والمنفذ"
+                return@addButton
+            }
+
+            statusText.text = "جارٍ اختبار الوصول..."
+            thread {
+                val reachable = try {
+                    Socket().use {
+                        it.connect(InetSocketAddress(ip, port), 3000)
+                    }
+                    true
+                } catch (_: Exception) {
+                    false
+                }
+
+                runOnUiThread {
+                    statusText.text = if (reachable) {
+                        "يمكن الوصول إلى المنفذ. لم يتم التحقق من تسجيل الدخول بعد."
+                    } else {
+                        "تعذر الوصول إلى المنفذ. تحقق من الشبكة وإعدادات الراوتر."
+                    }
+                }
+            }
+        }
+
+        statusText = TextView(this).apply {
+            text = "لم يتم اختبار الاتصال بعد"
+            textSize = 16f
+            setTextColor(Color.rgb(40, 70, 90))
+            gravity = Gravity.RIGHT
+            setPadding(4, 18, 4, 18)
+        }
+        layout.addView(statusText)
+
+        addText("ملاحظة: يلزم تفعيل API على الراوتر والسماح بالوصول من جهازك.", 13f)
     }
 }
