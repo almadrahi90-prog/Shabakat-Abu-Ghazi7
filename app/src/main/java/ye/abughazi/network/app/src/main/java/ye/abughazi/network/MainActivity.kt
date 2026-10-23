@@ -36,7 +36,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(28, 24, 28, 24)
             setBackgroundColor(Color.rgb(245, 248, 252))
-            layoutDirection = LinearLayout.LayoutDirection.RTL
+            layoutDirection = android.view.View.LAYOUT_DIRECTION_RTL
         }
 
         scroll.addView(layout)
@@ -57,7 +57,7 @@ class MainActivity : Activity() {
                 this.hint = hint
                 setText(value)
                 textSize = 16f
-                singleLine = true
+                setSingleLine(true)
                 layout.addView(
                     this,
                     LinearLayout.LayoutParams(
